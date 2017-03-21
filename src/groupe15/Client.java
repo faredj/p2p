@@ -1,7 +1,5 @@
 package groupe15;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -9,23 +7,21 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.Scanner;
 
 public class Client {
 	private SocketChannel socketChannel;
 	private InetSocketAddress adr;
 	private boolean connected;
-	public Client(InetSocketAddress adr) {
+	public Client(InetSocketAddress adr, boolean blockingMode) {
 		try {
 			socketChannel = SocketChannel.open();
-			socketChannel.configureBlocking(true);
 			this.setConnected(socketChannel.connect(adr));
 		} catch (IOException e) {
+//			e.printStackTrace();
 			System.out.println("Erreur lors de la connexion");
-			//e.printStackTrace();
 		}
 	}
 
@@ -53,7 +49,8 @@ public class Client {
 		this.connected = connected;
 	}
 	
-	public void getPeers() {
+	public HashMap<Integer, String> getPeers() {
+		HashMap<Integer, String> listePeers = new HashMap<Integer, String>();
 		try {
 			ByteBuffer toWrite = ByteBuffer.allocate(1024);
 			ByteBuffer toRead = ByteBuffer.allocate(1024);
@@ -64,42 +61,34 @@ public class Client {
 			sc.write(toWrite);
 			toRead.clear();
 			sc.read(toRead);
-
-//			////////////DATA TEST
-//			ByteBuffer bb = c.encode("prog-reseau-m1.lacl.fr");
-//			toRead.putInt(8800);
-//			toRead.putInt(bb.limit());
-//			toRead.put(bb);
-//			
-//			ByteBuffer bb2 = c.encode("prog-reseau-m1.zzzz.com");
-//			toRead.putInt(2233);
-//			toRead.putInt(bb2.limit());
-//			toRead.put(bb2);
-//			/////////////////
-			
 			toRead.flip();
-			System.out.print("ID : "+toRead.get());
-			int nbPairs = toRead.getInt();
-			System.out.println(" | Nombre de pairs : "+nbPairs);
-			System.out.println("Liste des paires :");
-			for (int i = 1; i <= nbPairs; i++){
-				int port = toRead.getInt();
-				int hostLength = toRead.getInt();
-				ByteBuffer tempHost = ByteBuffer.allocate(1024);
-				int p = toRead.position()+hostLength;
-				while (toRead.position() != p) {
-					tempHost.put(toRead.get());
+			System.out.println();
+			int id;
+			while ((id = (int)toRead.get()) != 3 && toRead.hasRemaining()) {
+			}
+			if(id == 3){
+				int nbPairs = toRead.getInt();
+				for (int i = 1; i <= nbPairs; i++){
+					int port = toRead.getInt();
+					int hostLength = toRead.getInt();
+					ByteBuffer tempHost = ByteBuffer.allocate(1024);
+					int p = toRead.position()+hostLength;
+					while (toRead.position() != p){
+						tempHost.put(toRead.get());
+					}
+					tempHost.flip();
+					CharBuffer cb = c.decode(tempHost);
+					listePeers.put(port, cb.toString());
 				}
-				tempHost.flip();
-				CharBuffer cb = c.decode(tempHost);
-				System.out.println("	Port : "+port+"  Host : "+cb.toString());
-				tempHost.clear();
-			}			
+			}else{
+				System.out.println("Erreur dans la réponse");
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
+		return listePeers;
 	}
+	
 	public HashMap<Long, String> getFilesList(){
 		HashMap<Long, String> listeFiles = new HashMap<Long, String>();
 		try {
@@ -113,148 +102,167 @@ public class Client {
 			toRead.clear();
 			sc.read(toRead);
 			toRead.flip();
-			toRead.get();
-			int nbFiles = toRead.getInt();
-			for (int i = 0; i < nbFiles; i++) {
-				int stringSize = toRead.getInt();//taile du nom du fichier
-				ByteBuffer tempFileName = ByteBuffer.allocate(1024);
-				int p = toRead.position()+stringSize;
-				while (toRead.position() != p) {//get nom fichier
-					tempFileName.put(toRead.get());
+			int id;
+			while ((id = (int)toRead.get()) != 5 && toRead.hasRemaining()){}
+			if(id == 5){
+				int nbFiles = toRead.getInt();
+				for (int i = 0; i < nbFiles; i++) {
+					int stringSize = toRead.getInt();//taile du nom du fichier
+					ByteBuffer tempFileName = ByteBuffer.allocate(1024);
+					int p = toRead.position()+stringSize;
+					while (toRead.position() != p) {//get nom fichier
+						tempFileName.put(toRead.get());
+					}
+					long sizeFile = toRead.getLong();//taile du fichier
+					tempFileName.flip();
+					CharBuffer cb = c.decode(tempFileName);
+					listeFiles.put(sizeFile, cb.toString());
+					tempFileName.clear();
 				}
-				long sizeFile = toRead.getLong();//taile du fichier
-				tempFileName.flip();
-				CharBuffer cb = c.decode(tempFileName);
-				listeFiles.put(sizeFile, cb.toString());
-				tempFileName.clear();
+			}else{
+				System.out.println("Erreur dans la réponse");
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-		}			
+		}
 		return listeFiles;
 	}
+	
 	public void getFile(String nomFile) {
-		
+		System.out.println();
 		ByteBuffer toWrite = ByteBuffer.allocate(2048);
-		ByteBuffer toRead = ByteBuffer.allocate(700000);
 		Charset c = Charset.forName("UTF-8");
 		SocketChannel sc = this.getSocketChannel();
 		
 		HashMap<Long, String> listeFiles = this.getFilesList();
 		long sizeFile = -1;
 		for (Map.Entry<Long, String> entry : listeFiles.entrySet()) {
-		    if(nomFile.equals(entry.getValue()))
+		    if(nomFile.equals(entry.getValue())){
 		    	sizeFile = entry.getKey();
+		    }
+		    	
 		}
 		if(sizeFile != -1){
 			try {
-				ByteBuffer temp = c.encode(nomFile);
-				toWrite.clear();
-				toWrite.put((byte) 6);//Id 
-				int pos = temp.limit();
-				toWrite.putInt(pos);//taille string (nom fichier)
-				toWrite.put(temp);//nom fichier
-				toWrite.putLong(sizeFile);//taille total du fichier
-				toWrite.putLong(0);//position du debut du fichier
-				
-				toWrite.putInt((int)sizeFile);//taille du fragment demandé
-				toWrite.flip();
-				
-				sc.write(toWrite);
-				
-				toRead.clear();
-				sc.read(toRead);
-				toRead.flip();
-								
-				System.out.println("   ID : "+toRead.get());
-				
-				int stringSize = toRead.getInt();//taile du nom du fichier
-				ByteBuffer tempFileName = ByteBuffer.allocate(1024);
-				int p = toRead.position()+stringSize;
-				while (toRead.position() != p) {//get nom fichier
-					tempFileName.put(toRead.get());
-				}
-				tempFileName.flip();
-				CharBuffer cb = c.decode(tempFileName);
-				String fileName = cb.toString();
-				System.out.println("	Nom du fichier  : "+fileName);
-				System.out.println("	Taille total    : "+toRead.getLong());
-				System.out.println("	Pos demandée    : "+toRead.getLong());
-				int t = toRead.getInt();
-				System.out.println("	Taille fragment : "+t);
-				ByteBuffer file = ByteBuffer.allocate(t);
+				long curentPos = 0;
+				long finalPos = sizeFile;
+				ByteBuffer file = ByteBuffer.allocate(((int)sizeFile));
+				String fileNameChar = "";
 				file.clear();
-				while (toRead.hasRemaining()) {
-					file.put(toRead.get());
+				
+				System.out.println("Téléchargement de : "+nomFile);
+				long startTime = System.nanoTime();
+				while(curentPos != finalPos){
+					System.out.println(file);
+
+					ByteBuffer fileNameByte = c.encode(nomFile);	//nom du fichier
+					int nameStringSize = fileNameByte.limit();		//taille du nom du fichier
+					long fragmentLength = 0;
+					if(finalPos-curentPos >= 65536){
+						fragmentLength = 65536;
+					}else{
+						fragmentLength = finalPos - curentPos;
+					}
+					toWrite.clear();
+					toWrite.put((byte) 6);							//Id
+					toWrite.putInt(nameStringSize);					//taille string (nom fichier)
+					toWrite.put(fileNameByte);						//nom fichier
+					toWrite.putLong((long)sizeFile);						//taille total du fichier
+					
+					toWrite.putLong((long)curentPos);						//position du debut du fichier
+					toWrite.putInt((int)fragmentLength);			//taille du fragment demandé
+					toWrite.flip();
+
+					sc.write(toWrite);
+					toWrite.flip();
+		
+					int finalPosition = (int)fragmentLength + nameStringSize + 25;
+					ByteBuffer toRead = ByteBuffer.allocate(finalPosition-1);
+					ByteBuffer toReadTest = ByteBuffer.allocate(80000);
+					toRead.clear();
+					toReadTest.clear();
+					sc.read(toReadTest);
+					if(finalPos > 65536){
+						sc.read(toReadTest);
+						sc.read(toReadTest);
+					}
+						
+					
+					int firstR = toReadTest.position();
+					toReadTest.flip();
+					int idd;
+					while((idd = (int)toReadTest.get()) != 7){
+						System.out.print("-");
+					}
+					while (toReadTest.position() < firstR) {
+						toRead.put(toReadTest.get());
+					}
+					
+					while(toRead.remaining() > 0){
+				    	 sc.read(toRead);
+				     }
+					toRead.flip();
+		
+					
+					int stringSize = toRead.getInt();		//taile du nom du fichier
+					ByteBuffer tempFileName = ByteBuffer.allocate(1024);
+					int p = toRead.position()+stringSize;
+					while (toRead.position() != p) {		//get nom fichier
+						tempFileName.put(toRead.get());
+					}
+					tempFileName.flip();
+					CharBuffer cb = c.decode(tempFileName);
+					fileNameChar = cb.toString();
+					toRead.getLong();
+					toRead.getLong();
+					toRead.getInt();
+					
+						while (toRead.hasRemaining()) {
+							file.put(toRead.get());
+						}
+						long poooo = (long)file.position();
+						curentPos = poooo;
+					System.out.print(":");
 				}
-				System.out.println(toRead);
+				long endTime = System.nanoTime();
+				long duration = (endTime - startTime)/1000000000;
+				System.out.println();
+				System.out.println("Durée du téléchargement : "+duration+" sec");
+
 				file.flip();
-				FileOutputStream fos = new FileOutputStream("/home/faredj/workspace/groupe15/"+fileName);
+				FileOutputStream fos = new FileOutputStream("/home/faredj/"+fileNameChar);
 				fos.write(file.array());
 				fos.close();
-
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}else{
 			System.out.println("Fichier introuvable !");
-			toWrite.clear();
 		}
-	}
-	public void testUpload() throws IOException{
-		ByteBuffer toWrite = ByteBuffer.allocate(700000);
-		ByteBuffer toRead = ByteBuffer.allocate(700000);
-		Charset c = Charset.forName("UTF-8");
-		SocketChannel sc = this.getSocketChannel();
-		FileInputStream fis;
+	}	
+	
+	public void declarePeer(){
 		try {
-			String s = "jsk.txt";
-			fis = new FileInputStream("/home/faredj/workspace/groupe15/"+s);
-			byte[] toWriteFile = new byte[fis.available()];
-			ByteBuffer nomFile = c.encode(s);
-			fis.read(toWriteFile);
-			toWrite.clear();
-			
-			toWrite.put((byte)7);
-			toWrite.putInt(7);
-			toWrite.put(nomFile);
-			long lf = toWriteFile.length;
-			toWrite.putLong(lf);
-			long pp = 0;
-			toWrite.putLong(pp);
-			toWrite.putInt(toWriteFile.length);
-			toWrite.put(toWriteFile);
-			
+			ByteBuffer toWrite = ByteBuffer.allocate(24);
+			SocketChannel sc = this.getSocketChannel();
+			toWrite.put((byte) 1);
+			toWrite.putInt(4433);
 			toWrite.flip();
 			sc.write(toWrite);
-			toRead.clear();
-			sc.read(toRead);
-			toRead.flip();
-			System.out.println(toRead);
-			System.out.println(toRead.get());
+			toWrite.flip();
+			toWrite.get();
+			System.out.println("	Port déclaré : "+toWrite.getInt());
 			
-			
-			ByteBuffer bbb = ByteBuffer.allocate(1024);
-			int p = toRead.position()+toRead.getInt();
-			while (toRead.position() != p) {//get nom fichier
-				bbb.put(toRead.get());
-			}
-			bbb.flip();
-			CharBuffer cb = c.decode(bbb);
-			System.out.println(cb.toString());
-			
-			
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
 	}
 	public static void main(String[] args) {
-		ByteBuffer temp;
-		temp = ByteBuffer.allocate(1024);
+		ByteBuffer temp = ByteBuffer.allocate(1024);
 		InetSocketAddress adr = new InetSocketAddress("prog-reseau-m1.zzzz.io", 443);
-		Client client = new Client(adr);
+//		InetSocketAddress adr = new InetSocketAddress("192.168.43.121", 1996);
+//		InetSocketAddress adr = new InetSocketAddress("192.168.43.19", 4433);
+		Client client = new Client(adr, false);
 		if(client.isConnected()){
 			System.out.println("Connexion réussie !");
 		}else{
@@ -265,19 +273,84 @@ public class Client {
 			temp.clear();
 			client.getSocketChannel().read(temp);
 			
-			
-			//client.getPeers();
-			
-			HashMap<Long, String> listeFiles = client.getFilesList();
-			System.out.println("Liste des fichiers :");
-			for (Map.Entry<Long, String> entry : listeFiles.entrySet()) {
-			    Object value = entry.getValue();
-			    System.out.println(entry.getValue()+"     "+entry.getKey());
+			System.out.println("------------------------------------------------------------------------------");
+			System.out.println("                       >>Peer to Peer v1.0<<");
+			System.out.println("------------------------------------------------------------------------------");
+			System.out.println("Menu principal :");
+			System.out.println("    1 > Déclarer le port");
+			System.out.println("    2 > Récupérer liste des pairs");
+			System.out.println("    3 > Récupérer liste des fichiers");
+			System.out.println("    4 > Télécharger un fichier");
+			System.out.println("    5 > Quitter");
+			System.out.println("------------------------------------------------------------------------------");
+			@SuppressWarnings("resource")
+			Scanner sc = new Scanner(System.in);
+			String choix;
+			do  {
+				System.out.print("Action : ");
+				choix = sc.nextLine();
+			}while((!(choix.equals("1") || choix.equals("2") || choix.equals("3") || choix.equals("4") || choix.equals("5"))));
+			while(choix.equals("1") || choix.equals("2") || choix.equals("3") || choix.equals("4")){//Boucle du menu principal
+				switch (choix) {
+				case "1"://déclarer port
+					System.out.println("ID 1 : déclaration port");
+					client.declarePeer();
+					break;
+				case "2"://recup liste des pairs
+					System.out.println("ID 2 : Demande liste des pairs");
+					HashMap<Integer, String> listePairs = client.getPeers();
+					if(listePairs.size() == 0){
+						System.out.println("Aucun pair trouvés !");
+					}else{
+						int nb  = 1;
+						for (Map.Entry<Integer, String> entry : listePairs.entrySet()) {
+					    System.out.println("   "+nb+" | "+entry.getValue()+"    >>   "+entry.getKey());
+						nb++;
+						}
+					}
+					
+					break;
+				case "3"://récupérer liste des fichiers 
+					System.out.println("ID 4 : Demande liste des fichirs");
+					HashMap<Long, String> listeFiles = client.getFilesList();
+					int nb = 1;
+					if(listeFiles.size() != 0){
+						for (Map.Entry<Long, String> entry : listeFiles.entrySet()) {
+						String space = "";
+						for (int i = entry.getValue().length(); i < 25; i++)
+							space = space+" ";
+					    System.out.println("     "+nb+" | "+entry.getValue()+space+entry.getKey());
+					    nb++;
+						}
+					}else{
+						System.out.println("Aucun fichier trouvé");
+					}
+					break;
+				case "4"://télécharger fichier
+					System.out.println("ID 4 : Téléchargement fichier");
+					System.out.print("Entrez le nom du fichier à télécharger : ");
+					String nomFichierr = sc.nextLine();
+					nomFichierr = nomFichierr.replaceAll("[\n\r]", "");
+					client.getFile("Do.tif");
+					break;
+				default:break;
+				}
+				System.out.println("------------------------------------------------------------------------------");
+				System.out.println("                       >>Peer to Peer v1.0<<");
+				System.out.println("------------------------------------------------------------------------------");
+				System.out.println("Menu principal :");
+				System.out.println("    1 > Déclarer le port");
+				System.out.println("    2 > Récupérer liste des pairs");
+				System.out.println("    3 > Récupérer liste des fichiers");
+				System.out.println("    4 > Télécharger un fichier");
+				System.out.println("    5 > Quitter");
+				System.out.println("------------------------------------------------------------------------------");
+				do  {
+					System.out.print("Action : ");
+					choix = sc.nextLine();
+				}while((!(choix.equals("1") || choix.equals("2") || choix.equals("3") || choix.equals("4") || choix.equals("5"))));
 			}
-//			
-			client.getFile("jsk.txt");
-			client.testUpload();
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
