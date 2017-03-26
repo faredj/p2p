@@ -9,3 +9,5 @@ Les deux premiéres classes constituent le pair avec les opétation du client da
 >le serveur se lance avec l'affichage des echange dans la console dans laquel y'a aussi le menu pour les requêtes du client
 
 >la classe SimpleClient.java on l'a mit en place principalement pour le téléchargement des fichiers du moment qu'on a pas eu le temps de faire ça dans le selector (elle contient aussi le main)
+
+>avant le lancemenr faudrait aussi configurer le chemin des entrés sorties des fichiers
