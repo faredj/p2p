@@ -82,12 +82,16 @@ public class SimpleClient{
 			buffer.clear();
 			sc.read(buffer);
 			sc.read(buffer);
-			sc.read(buffer);
 			buffer.flip();
-			while ((int)buffer.get() != 5 && buffer.hasRemaining()) {
+			int id;
+			while ((id=(int)buffer.get()) != 5 && buffer.hasRemaining()) {
 			}
-			listeFiles = this.desirializeListeFiles(buffer);
-			this.setListefiles(listeFiles);
+			if(id==5){
+				listeFiles = this.desirializeListeFiles(buffer);
+				this.setListefiles(listeFiles);
+			}else {
+				System.out.println("Erreur reponse");
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -127,6 +131,7 @@ public class SimpleClient{
 				listeFiles.add(new Tuple<String, Long>(cb.toString(), fileSize));
 				fileName.clear();
 			}
+			this.setListefiles(listeFiles);
 		return listeFiles;
 	}
 	public void getFile(String nomFile) {
@@ -135,7 +140,6 @@ public class SimpleClient{
 		SocketChannel sc = this.sc;
 		
 		long sizeFile = -1;
-		this.askListFiles();
 		List<Tuple<String, Long>> listeFiles = this.getListefiles();
 		for (Tuple<String, Long> tuple : listeFiles) {
 			if(nomFile.equals(tuple.getKey())){

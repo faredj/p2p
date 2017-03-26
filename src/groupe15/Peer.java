@@ -92,6 +92,22 @@ public class Peer implements Runnable{
 	public void setListefiles(List<Tuple<String, Long>> listefiles) {
 		this.listefiles = listefiles;
 	}
+	public void connectToPeers() throws IOException{
+		List<Tuple<String, Integer>> listePeers = this.getListePairs();
+		for (Tuple<String, Integer> tuple : listePeers) {
+			InetSocketAddress adrSc = new InetSocketAddress(tuple.getKey(), tuple.getVal());
+			System.out.println("Connection to : "+tuple.getKey());
+			client = new Client(adrSc);
+			client.setPeer(this);
+			Thread tClient = new Thread(client);
+			sc = client.getSc();
+			this.setClient(client);
+			sc.configureBlocking(false);
+			sc.register(selector, SelectionKey.OP_READ);
+			tClient.start();
+		}
+	}
+	
 	public void sendPeers(SocketChannel socketChannel) {
 		ByteBuffer buffer = ByteBuffer.allocate(65000);
 		buffer.clear();
@@ -161,6 +177,7 @@ public class Peer implements Runnable{
 		tempFileName.flip();
 		CharBuffer cb = c.decode(tempFileName);
 		String fileNameChar = cb.toString();
+		System.out.print(" : "+fileNameChar);
 		long totalSize = bb.getLong();
 		long posRead = bb.getLong();
 		int fragmentSize = bb.getInt();
@@ -249,15 +266,15 @@ public class Peer implements Runnable{
 							int id = (int)bb.get();
 							switch (id) {
 								case 2:
-									System.out.println("Id "+id+" : Envoi liste des paires");
+									System.out.println("SERVEUR > Id "+id+" : Envoi liste des paires");
 									this.sendPeers(channel);
 									break;
 								case 3:
-									System.out.println("Id "+id+" : Reception liste paires");
+									System.out.println("SERVEUR > Id "+id+" : Reception liste paires");
 									List<Tuple<String, Integer>> listeOfPeers = this.desirializePeers(bb);
 									this.setListePairs(listeOfPeers);
 									if(listeOfPeers.size() == 0){
-										System.out.println("Id "+id+" : Aucun pair trouvés !");
+										System.out.println("SERVEUR > Id "+id+" : Aucun pair trouvés !");
 									}else{
 										int nb  = 1;
 										for (Tuple<String, Integer> tuple : listeOfPeers) {
@@ -267,11 +284,11 @@ public class Peer implements Runnable{
 									}
 									break;									
 								case 4:
-									System.out.println("Id "+id+" : Demande de liste des fichiers connus");
+									System.out.println("SERVEUR > Id "+id+" : Demande de liste des fichiers connus");
 									this.sendListeFiles(channel);
 									break;
 								case 5:
-									System.out.println("Id "+id+" : Reception liste fichiers");
+									System.out.println("SERVEUR > Id "+id+" : Reception liste fichiers");
 									List<Tuple<String, Long>> listeOfFiles = this.desirializeListeFiles(bb);
 									this.setListefiles(listeOfFiles);
 									int nb = 1;
@@ -288,7 +305,7 @@ public class Peer implements Runnable{
 									}
 									break;
 								case 6:
-									System.out.println("Id "+id+" : Demande fichier");
+									System.out.println("SERVEUR > Id "+id+" : Demande fichier");
 									this.sendFragment(channel, bb);
 									break;
 								case 7:

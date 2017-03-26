@@ -114,19 +114,19 @@ public class Client implements Runnable{
 			while(choix.equals("1") || choix.equals("2") || choix.equals("3") || choix.equals("4")){//Boucle du menu principal
 				switch (choix) {
 				case "1":
-					System.out.println(" > Déclaration port");
+					System.out.println("CLIENT > Déclaration port");
 					this.declarePeer();
 					break;
 				case "2":
-					System.out.println(" > Deande liste des pairs");
+					System.out.println("CLIENT > Deande liste des pairs");
 					this.askPeers();
 					break;
 				case "3":
-					System.out.println(" > Demande liste des fichiers");
+					System.out.println("CLIENT > Demande liste des fichiers");
 					this.askListFiles();
 					break;
 				case "4":
-					System.out.println("Téléchargement fichier");
+					System.out.println("CLIENT > Téléchargement fichier");
 					System.out.print("Nom du fichier : ");
 					String nomFichierr = sc.next();
 					nomFichierr = nomFichierr.trim();
