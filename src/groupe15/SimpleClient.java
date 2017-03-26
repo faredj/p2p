@@ -7,14 +7,15 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
-public class Client implements Runnable{
+public class SimpleClient{
 	Charset c = Charset.forName("UTF-8");
 	private SocketChannel sc;
 	Peer peer;
-	public Client(InetSocketAddress adr) {
+	public SimpleClient(InetSocketAddress adr) {
 		try {
 			sc = SocketChannel.open();
 			if(sc.connect(adr)){
@@ -22,6 +23,7 @@ public class Client implements Runnable{
 			}else{
 				System.out.println("Erreur lors de la connexion");
 			}
+//			socketChannel.configureBlocking(false);
 		} catch (IOException e) {
 			System.out.println("Erreur lors de la connexion");
 		}
@@ -43,6 +45,14 @@ public class Client implements Runnable{
 		this.peer = peer;
 	}
 
+	public Tuple<String, Long> getLastFileDown() {
+		return lastFileDown;
+	}
+
+	public void setLastFileDown(Tuple<String, Long> lastFileDown) {
+		this.lastFileDown = lastFileDown;
+	}
+
 	public void askPeers() {
 		try {
 			ByteBuffer buffer = ByteBuffer.allocate(2048);
@@ -51,12 +61,29 @@ public class Client implements Runnable{
 			buffer.flip();
 			sc.write(buffer);
 			buffer.clear();
+			sc.read(buffer);
+			sc.read(buffer);
+			buffer.flip();
+			int id;
+			while ((id = (int)buffer.get()) != 3 && buffer.hasRemaining()) {
+			}
+			List<Tuple<String, Integer>> listePairs = this.desirializePeers(buffer);
+			if(listePairs.size() == 0){
+			System.out.println("Aucun pair trouvés !");
+			}else{
+				int nb  = 1;
+				for (Tuple<String, Integer> tuple : listePairs) {
+				System.out.println("   "+nb+" | "+tuple.getKey()+"    >>   "+tuple.getVal());
+				nb++;
+				}
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 	
-	public void askListFiles(){
+	public List<Tuple<String, Long>> askListFiles(){
+		List<Tuple<String, Long>> listeFiles = new ArrayList<>();
 		try {
 			ByteBuffer buffer = ByteBuffer.allocate(2048);
 			SocketChannel sc = this.sc;
@@ -64,11 +91,55 @@ public class Client implements Runnable{
 			buffer.flip();
 			sc.write(buffer);
 			buffer.clear();
+			sc.read(buffer);
+			sc.read(buffer);
+			sc.read(buffer);
+			buffer.flip();
+			int id;
+			while ((id = (int)buffer.get()) != 5 && buffer.hasRemaining()) {
+			}
+			listeFiles = this.desirializeListeFiles(buffer);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		return listeFiles;
 	}
-
+	public List<Tuple<String, Integer>> desirializePeers(ByteBuffer bb){
+		List<Tuple<String, Integer>> listePeers = new ArrayList<Tuple<String, Integer>>();
+		int nbPairs = bb.getInt();
+		for (int i = 1; i <= nbPairs; i++){
+			int port = bb.getInt();
+			int hostLength = bb.getInt();
+			ByteBuffer tempHost = ByteBuffer.allocate(1024);
+			int p = bb.position()+hostLength;
+			while (bb.position() != p){
+				tempHost.put(bb.get());
+			}
+			tempHost.flip();
+			CharBuffer cb = c.decode(tempHost);
+			listePeers.add(new Tuple<String, Integer>(cb.toString(), port));
+		}
+		return listePeers;
+	}
+	
+	public List<Tuple<String, Long>> desirializeListeFiles(ByteBuffer bb) throws IOException{
+		List<Tuple<String, Long>> listeFiles = new ArrayList<Tuple<String, Long>>();
+			int nbF = bb.getInt();
+			for (int i = 1; i <= nbF; i++){
+				int nameSize = bb.getInt();		//taile du nom du fichier
+				ByteBuffer fileName = ByteBuffer.allocate(2048);
+				int p = bb.position()+nameSize;
+				while (bb.position() != p) {		//get nom fichier
+					fileName.put(bb.get());
+				}
+				long fileSize = bb.getLong();		//taile du fichier
+				fileName.flip();
+				CharBuffer cb = c.decode(fileName);
+				listeFiles.add(new Tuple<String, Long>(cb.toString(), fileSize));
+				fileName.clear();
+			}
+		return listeFiles;
+	}
 	public void getFile(String nomFile) {
 		System.out.println();
 		ByteBuffer buffer = ByteBuffer.allocate(2048);
@@ -76,15 +147,9 @@ public class Client implements Runnable{
 		
 		long sizeFile = -1;
 		this.askListFiles();
-		try {
-			Thread.sleep(10000);
-		} catch (InterruptedException e1) {
-			e1.printStackTrace();
-		}
-		List<Tuple<String, Long>> listeFiles = this.getPeer().getListefiles();
+		List<Tuple<String, Long>> listeFiles = this.askListFiles();;
 		for (Tuple<String, Long> tuple : listeFiles) {
 			if(nomFile.equals(tuple.getKey())){
-				System.out.println("file ");
 		    	sizeFile = tuple.getVal();
 		    }
 		}
@@ -130,8 +195,9 @@ public class Client implements Runnable{
 					if(finalPos > 65536){
 						sc.read(readtemp);
 						sc.read(readtemp);
+						sc.read(readtemp);
 					}
-						
+					System.out.println(readtemp);
 					int firstR = readtemp.position();
 					readtemp.flip();
 					//int idd;
@@ -202,7 +268,7 @@ public class Client implements Runnable{
 			e.printStackTrace();
 		}
 	}
-	@Override
+
 	public void run(){
 		ByteBuffer temp = ByteBuffer.allocate(1024);
 		try {
@@ -239,7 +305,19 @@ public class Client implements Runnable{
 					break;
 				case "3":
 					System.out.println(" > Demande liste des fichiers");
-					this.askListFiles();
+					List<Tuple<String, Long>> listeFiles = this.askListFiles();
+					int nb = 1;
+					if(listeFiles.size() != 0){
+						for (Tuple<String, Long> tuple : listeFiles) {
+							String space = "";
+							for (int i = tuple.getKey().length(); i < 25; i++)
+								space = space+" ";
+						    System.out.println("     "+nb+" | "+tuple.getKey()+space+tuple.getVal());
+							nb++;
+						}
+					}else{
+						System.out.println("Aucun fichier trouvé");
+					}
 					break;
 				case "4":
 					System.out.println("Téléchargement fichier");
@@ -268,6 +346,11 @@ public class Client implements Runnable{
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	public static void main(String[] args) {
+		InetSocketAddress adr = new InetSocketAddress("prog-reseau-m1.zzzz.io", 443);
+		SimpleClient client = new SimpleClient(adr);
+		client.run();
 	}
 }
 
