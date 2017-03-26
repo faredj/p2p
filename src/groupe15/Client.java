@@ -68,123 +68,6 @@ public class Client implements Runnable{
 			e.printStackTrace();
 		}
 	}
-
-	public void getFile(String nomFile) {
-		System.out.println();
-		ByteBuffer buffer = ByteBuffer.allocate(2048);
-		SocketChannel sc = this.sc;
-		
-		long sizeFile = -1;
-		this.askListFiles();
-		try {
-			Thread.sleep(10000);
-		} catch (InterruptedException e1) {
-			e1.printStackTrace();
-		}
-		List<Tuple<String, Long>> listeFiles = this.getPeer().getListefiles();
-		for (Tuple<String, Long> tuple : listeFiles) {
-			if(nomFile.equals(tuple.getKey())){
-				System.out.println("file ");
-		    	sizeFile = tuple.getVal();
-		    }
-		}
-		if(sizeFile != -1){
-			try {
-				long curentPos = 0;
-				long finalPos = sizeFile;
-				ByteBuffer file = ByteBuffer.allocate(((int)sizeFile));
-				String fileNameChar = "";
-				file.clear();
-				
-				System.out.println("Téléchargement de : "+nomFile);
-				long startTime = System.nanoTime();
-				while(curentPos != finalPos){
-
-					ByteBuffer fileNameByte = c.encode(nomFile);	//nom du fichier
-					int nameStringSize = fileNameByte.limit();		//taille du nom du fichier
-					long fragmentLength = 0;
-					if(finalPos-curentPos >= 65536){
-						fragmentLength = 65536;
-					}else{
-						fragmentLength = finalPos - curentPos;
-					}
-					buffer.clear();
-					buffer.put((byte) 6);							//Id
-					buffer.putInt(nameStringSize);					//taille string (nom fichier)
-					buffer.put(fileNameByte);						//nom fichier
-					buffer.putLong((long)sizeFile);						//taille total du fichier
-					
-					buffer.putLong((long)curentPos);						//position du debut du fichier
-					buffer.putInt((int)fragmentLength);			//taille du fragment demandé
-					buffer.flip();
-
-					sc.write(buffer);
-					buffer.flip();
-		
-					int finalPosition = (int)fragmentLength + nameStringSize + 25;
-					ByteBuffer bb = ByteBuffer.allocate(finalPosition-1);
-					ByteBuffer readtemp = ByteBuffer.allocate(80000);
-					bb.clear();
-					readtemp.clear();
-					sc.read(readtemp);
-					if(finalPos > 65536){
-						sc.read(readtemp);
-						sc.read(readtemp);
-					}
-						
-					int firstR = readtemp.position();
-					readtemp.flip();
-					//int idd;
-					while(((int)readtemp.get()) != 7){
-						System.out.print("-");
-					}
-					
-					while (readtemp.position() < firstR) {
-						bb.put(readtemp.get());
-					}
-					
-					while(bb.remaining() > 0){
-				    	 sc.read(bb);
-				    }
-					
-					bb.flip();
-					
-					int stringSize = bb.getInt();		//taile du nom du fichier
-					ByteBuffer tempFileName = ByteBuffer.allocate(1024);
-					int p = bb.position()+stringSize;
-					while (bb.position() != p) {		//get nom fichier
-						tempFileName.put(bb.get());
-					}
-					tempFileName.flip();
-					CharBuffer cb = c.decode(tempFileName);
-					fileNameChar = cb.toString();
-					bb.getLong();
-					bb.getLong();
-					bb.getInt();
-					
-						while (bb.hasRemaining()) {
-							file.put(bb.get());
-						}
-						long poooo = (long)file.position();
-						curentPos = poooo;
-					System.out.print(":");
-				}
-				long endTime = System.nanoTime();
-				long duration = (endTime - startTime)/1000000000;
-				System.out.println();
-				System.out.println("Durée du téléchargement : "+duration+" sec");
-
-				file.flip();
-				FileOutputStream fos = new FileOutputStream("/home/faredj/"+fileNameChar);
-				fos.write(file.array());
-				fos.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}else{
-			System.out.println("Fichier introuvable !");
-		}
-	}
 	
 	public void declarePeer(){
 		try {
@@ -202,6 +85,7 @@ public class Client implements Runnable{
 			e.printStackTrace();
 		}
 	}
+	
 	@Override
 	public void run(){
 		ByteBuffer temp = ByteBuffer.allocate(1024);
@@ -246,7 +130,7 @@ public class Client implements Runnable{
 					System.out.print("Nom du fichier : ");
 					String nomFichierr = sc.next();
 					nomFichierr = nomFichierr.trim();
-					this.getFile(nomFichierr);
+					//this.getFile(nomFichierr);
 					break;
 				default:break;
 				}

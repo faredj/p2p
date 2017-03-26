@@ -14,7 +14,7 @@ import java.util.Scanner;
 public class SimpleClient{
 	Charset c = Charset.forName("UTF-8");
 	private SocketChannel sc;
-	Peer peer;
+	List<Tuple<String, Long>> listefiles = new ArrayList<>();
 	public SimpleClient(InetSocketAddress adr) {
 		try {
 			sc = SocketChannel.open();
@@ -23,7 +23,6 @@ public class SimpleClient{
 			}else{
 				System.out.println("Erreur lors de la connexion");
 			}
-//			socketChannel.configureBlocking(false);
 		} catch (IOException e) {
 			System.out.println("Erreur lors de la connexion");
 		}
@@ -37,20 +36,12 @@ public class SimpleClient{
 		this.sc = sc;
 	}
 
-	public Peer getPeer() {
-		return peer;
+	public List<Tuple<String, Long>> getListefiles() {
+		return listefiles;
 	}
 
-	public void setPeer(Peer peer) {
-		this.peer = peer;
-	}
-
-	public Tuple<String, Long> getLastFileDown() {
-		return lastFileDown;
-	}
-
-	public void setLastFileDown(Tuple<String, Long> lastFileDown) {
-		this.lastFileDown = lastFileDown;
+	public void setListefiles(List<Tuple<String, Long>> listefiles) {
+		this.listefiles = listefiles;
 	}
 
 	public void askPeers() {
@@ -64,9 +55,7 @@ public class SimpleClient{
 			sc.read(buffer);
 			sc.read(buffer);
 			buffer.flip();
-			int id;
-			while ((id = (int)buffer.get()) != 3 && buffer.hasRemaining()) {
-			}
+			while ((int)buffer.get() != 3 && buffer.hasRemaining()) {}
 			List<Tuple<String, Integer>> listePairs = this.desirializePeers(buffer);
 			if(listePairs.size() == 0){
 			System.out.println("Aucun pair trouvés !");
@@ -95,10 +84,10 @@ public class SimpleClient{
 			sc.read(buffer);
 			sc.read(buffer);
 			buffer.flip();
-			int id;
-			while ((id = (int)buffer.get()) != 5 && buffer.hasRemaining()) {
+			while ((int)buffer.get() != 5 && buffer.hasRemaining()) {
 			}
 			listeFiles = this.desirializeListeFiles(buffer);
+			this.setListefiles(listeFiles);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -147,7 +136,7 @@ public class SimpleClient{
 		
 		long sizeFile = -1;
 		this.askListFiles();
-		List<Tuple<String, Long>> listeFiles = this.askListFiles();;
+		List<Tuple<String, Long>> listeFiles = this.getListefiles();
 		for (Tuple<String, Long> tuple : listeFiles) {
 			if(nomFile.equals(tuple.getKey())){
 		    	sizeFile = tuple.getVal();
@@ -197,7 +186,6 @@ public class SimpleClient{
 						sc.read(readtemp);
 						sc.read(readtemp);
 					}
-					System.out.println(readtemp);
 					int firstR = readtemp.position();
 					readtemp.flip();
 					//int idd;
@@ -257,7 +245,7 @@ public class SimpleClient{
 			ByteBuffer bb = ByteBuffer.allocate(24);
 			SocketChannel sc = this.sc;
 			bb.put((byte) 1);
-			bb.putInt(this.getPeer().getPort());
+			bb.putInt(3344);
 			bb.flip();
 			sc.write(bb);
 			bb.flip();
